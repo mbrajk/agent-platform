@@ -79,7 +79,7 @@ EOF
 
     # Extract verdict
     local verdict
-    verdict="$(echo "$result" | grep -oP '"verdict"\s*:\s*"(pass|fail)"' | grep -oP '(pass|fail)' | tail -1)"
+    verdict="$(echo "$result" | grep -oE '"verdict"[[:space:]]*:[[:space:]]*"(pass|fail)"' | grep -oE '(pass|fail)' | tail -1)"
     verdict="${verdict:-fail}"
 
     local gh_action

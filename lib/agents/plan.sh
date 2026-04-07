@@ -64,7 +64,7 @@ EOF
 
     # Extract complexity and add labels
     local complexity
-    complexity="$(echo "$result" | grep -oP '"complexity"\s*:\s*"(small|medium|large)"' | grep -oP '(small|medium|large)' | tail -1)"
+    complexity="$(echo "$result" | grep -oE '"complexity"[[:space:]]*:[[:space:]]*"(small|medium|large)"' | grep -oE '(small|medium|large)' | tail -1)"
 
     if [[ -n "$complexity" ]]; then
         add_label "$repo_path" "$issue_num" "complexity:${complexity}"

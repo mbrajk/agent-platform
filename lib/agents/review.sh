@@ -92,7 +92,7 @@ EOF
 
     # Extract verdict
     local verdict
-    verdict="$(echo "$result" | grep -oP '"verdict"\s*:\s*"(approve|request_changes|comment)"' | grep -oP '(approve|request_changes|comment)' | tail -1)"
+    verdict="$(echo "$result" | grep -oE '"verdict"[[:space:]]*:[[:space:]]*"(approve|request_changes|comment)"' | grep -oE '(approve|request_changes|comment)' | tail -1)"
     verdict="${verdict:-comment}"
 
     # Map verdict to GH review action

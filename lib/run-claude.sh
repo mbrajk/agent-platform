@@ -9,8 +9,12 @@ invoke_claude() {
     local max_turns="$5"
     local budget="$6"
 
-    local -a cmd=(
-        claude --bare
+    # Use --bare when ANTHROPIC_API_KEY is set (CI), regular auth otherwise (local)
+    local -a cmd=(claude)
+    if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+        cmd+=(--bare)
+    fi
+    cmd+=(
         -p "$user_prompt"
         --append-system-prompt-file "$system_prompt_file"
         --allowedTools "$allowed_tools"
