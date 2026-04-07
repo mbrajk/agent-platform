@@ -1,0 +1,45 @@
+# Agent Pipeline — copy to .github/workflows/agent-pipeline.yml in your project
+#
+# Triggers:
+#   - Issue labeled "ready"    → planner agent
+#   - Issue labeled "approved" → implementer agent
+#   - PR labeled "agent-pr"    → review gates (code, security, UX, build/test)
+
+name: Agent Pipeline
+
+on:
+  issues:
+    types: [labeled]
+  pull_request:
+    types: [opened, synchronize, labeled]
+
+jobs:
+  plan:
+    if: >
+      github.event_name == 'issues' &&
+      github.event.label.name == 'ready'
+    uses: mbrajk/agent-platform/.github/workflows/plan.yml@main
+    with:
+      issue_number: ${{ github.event.issue.number }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+  implement:
+    if: >
+      github.event_name == 'issues' &&
+      github.event.label.name == 'approved'
+    uses: mbrajk/agent-platform/.github/workflows/implement.yml@main
+    with:
+      issue_number: ${{ github.event.issue.number }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+  review-gates:
+    if: >
+      github.event_name == 'pull_request' &&
+      contains(github.event.pull_request.labels.*.name, 'agent-pr')
+    uses: mbrajk/agent-platform/.github/workflows/review-gates.yml@main
+    with:
+      pr_number: ${{ github.event.pull_request.number }}
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

@@ -1,0 +1,105 @@
+# Reusable workflow: Run all review gates on a PR
+# Triggered when a PR with label "agent-pr" is opened or updated
+
+name: Review Gates
+
+on:
+  workflow_call:
+    inputs:
+      pr_number:
+        required: true
+        type: number
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+
+jobs:
+  code-review:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout project repo
+        uses: actions/checkout@v4
+
+      - name: Checkout agent-platform
+        uses: actions/checkout@v4
+        with:
+          repository: mbrajk/agent-platform
+          path: .agent-platform
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run code structure review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          .agent-platform/run-agent.sh review-code \
+            --repo "${{ github.workspace }}" \
+            --pr ${{ inputs.pr_number }}
+
+  security-review:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout project repo
+        uses: actions/checkout@v4
+
+      - name: Checkout agent-platform
+        uses: actions/checkout@v4
+        with:
+          repository: mbrajk/agent-platform
+          path: .agent-platform
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run security review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          .agent-platform/run-agent.sh review-security \
+            --repo "${{ github.workspace }}" \
+            --pr ${{ inputs.pr_number }}
+
+  ux-review:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout project repo
+        uses: actions/checkout@v4
+
+      - name: Checkout agent-platform
+        uses: actions/checkout@v4
+        with:
+          repository: mbrajk/agent-platform
+          path: .agent-platform
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run UX review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          .agent-platform/run-agent.sh review-ux \
+            --repo "${{ github.workspace }}" \
+            --pr ${{ inputs.pr_number }}
+
+  build-test:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout project repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Checkout agent-platform
+        uses: actions/checkout@v4
+        with:
+          repository: mbrajk/agent-platform
+          path: .agent-platform
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run build/test
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          .agent-platform/run-agent.sh build-test \
+            --repo "${{ github.workspace }}" \
+            --pr ${{ inputs.pr_number }}
