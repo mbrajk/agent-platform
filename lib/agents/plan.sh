@@ -31,7 +31,7 @@ ${body}
 
 ---
 
-Explore the codebase thoroughly, then post your implementation plan following the format defined in your agent instructions. Be specific — reference exact file paths, function names, and line numbers.
+Explore the codebase thoroughly, then post your implementation plan following the format defined in your agent instructions. Include detailed acceptance criteria in WHEN-THEN-SHALL format that another agent can turn into tests. Be specific — reference exact file paths, function names, and line numbers.
 
 After writing the plan, output a single JSON block at the very end with your assessment:
 \`\`\`json
