@@ -5,14 +5,16 @@ These standards ensure codebases remain maintainable, navigable, and agent-frien
 ## File Organization
 
 ### Size Limits
-| Metric | Default Limit | Rationale |
-|--------|--------------|-----------|
-| File length | 500 lines | Agents lose context in large files; humans lose overview |
-| Function/method length | 50 lines | Forces decomposition into testable, nameable units |
-| Component render body | 80 lines JSX | Complex render trees should be split into sub-components |
-| Parameters per function | 5 | More than 5 signals the function does too much, or needs an options object |
+| Metric | Target | Hard Max | Rationale |
+|--------|--------|----------|-----------|
+| File length | 300 lines | 400 | AI tools degrade past ~300 lines (Cursor fast-apply breaks, attention drops). Split at 300, never exceed 400. |
+| Function/method length | 30 lines | 50 | Google recommends 40, Linux kernel 48. 30 keeps functions reviewable in one screen. |
+| Component render body | 60 lines JSX | 80 | Complex render trees should be split into sub-components |
+| Parameters per function | 4 | 6 | More than 4 signals the function does too much, or needs an options object |
+| PR diff size | 300 lines | 500 | AI review quality drops sharply beyond 400 lines of diff |
+| Files per task | 10 | 20 | Most AI tools cap effective working sets at 10-20 files |
 
-When a file approaches the limit, split proactively — don't wait until it's 499 lines and every change triggers a refactor.
+When a file approaches 250 lines, plan a split. Don't wait until it hits 300 and every change triggers a refactor.
 
 ### File Responsibilities
 - **One module = one concept.** A file should be describable in one sentence without "and."

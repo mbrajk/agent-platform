@@ -20,10 +20,11 @@ server:
 
 # Rule overrides (defaults from agent-platform/rules/)
 rules:
-  max_file_lines: 500
-  max_function_lines: 50
-  max_component_jsx_lines: 80
-  max_function_params: 5
+  max_file_lines: 400         # target 300, hard max 400
+  max_function_lines: 50      # target 30, hard max 50
+  max_component_jsx_lines: 80 # target 60, hard max 80
+  max_function_params: 6      # target 4, hard max 6
+  max_pr_diff_lines: 500      # target 300, hard max 500
 
 # Agent toggles
 agents:
