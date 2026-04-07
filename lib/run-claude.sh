@@ -8,6 +8,7 @@ invoke_claude() {
     local allowed_tools="$4"
     local max_turns="$5"
     local budget="$6"
+    local settings_file="${7:-}"  # Optional: path to settings JSON (e.g., MCP config)
 
     # Use --bare when ANTHROPIC_API_KEY is set (CI), regular auth otherwise (local)
     local -a cmd=(claude)
@@ -25,6 +26,10 @@ invoke_claude() {
 
     if [[ -n "$budget" && "$budget" != "0" ]]; then
         cmd+=(--max-budget-usd "$budget")
+    fi
+
+    if [[ -n "$settings_file" && -f "$settings_file" ]]; then
+        cmd+=(--settings "$settings_file")
     fi
 
     if [[ "$DRY_RUN" == "true" ]]; then

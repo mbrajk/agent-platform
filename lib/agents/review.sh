@@ -70,15 +70,47 @@ If verdict is "request_changes", list the specific blocking issues that must be 
 EOF
 )"
 
-    # Invoke Claude (read-only)
+    # UX reviewer with screenshots: enable Chrome MCP + extra tools/turns/budget
+    local allowed_tools="Read,Glob,Grep"
+    local turns=10
+    local settings_file=""
+
+    if [[ "$agent_name" == "ux-reviewer" ]]; then
+        local screenshots_enabled
+        screenshots_enabled="$(get_project_config "$repo_path" '.agents.ux_reviewer.screenshots | length' '0')"
+        if [[ "$screenshots_enabled" != "0" && "$screenshots_enabled" != "null" ]]; then
+            settings_file="$PLATFORM_DIR/config/mcp-chrome.json"
+            # Add browser tools + bash for starting dev server
+            allowed_tools="Read,Glob,Grep,Bash(*),mcp__chrome-devtools__*"
+            turns=20
+            # Append screenshot instructions to prompt
+            local screenshot_urls
+            screenshot_urls="$(get_project_config "$repo_path" '.agents.ux_reviewer.screenshots' '')"
+            local dev_cmd
+            dev_cmd="$(get_project_config "$repo_path" '.commands.dev_server' '')"
+            user_prompt="${user_prompt}
+
+## Visual Review
+${dev_cmd:+Start the dev server with: \`${dev_cmd}\`}
+Then use the Chrome DevTools tools to:
+1. Navigate to each page that was affected by this PR
+2. Take screenshots at 375px (mobile) and 1440px (desktop) widths
+3. Check for visual regressions, overflow, alignment issues, contrast
+4. Include the screenshots in your review (describe what you see)
+5. Stop the dev server when done"
+        fi
+    fi
+
+    # Invoke Claude
     local result
     result="$(invoke_claude \
         "$repo_path" \
         "$system_prompt_file" \
         "$user_prompt" \
-        "Read,Glob,Grep" \
-        10 \
-        "$budget"
+        "$allowed_tools" \
+        "$turns" \
+        "$budget" \
+        "$settings_file"
     )"
 
     local exit_code=$?
