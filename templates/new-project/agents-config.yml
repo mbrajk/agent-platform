@@ -1,0 +1,63 @@
+# Agent Platform — Project Configuration
+# Copy this to your project as .agents/config.yml
+
+# Project metadata
+stack: ""  # e.g., "typescript-react + python-fastapi", "rust + wasm", "go + htmx"
+
+# Build and verification commands
+commands:
+  install: ""       # e.g., "npm install && pip install -r requirements.txt"
+  build: ""         # e.g., "cd frontend && npm run build"
+  lint: ""          # e.g., "npm run lint"
+  typecheck: ""     # e.g., "npx tsc --noEmit"
+  test: ""          # e.g., "npm test"
+  dev_server: ""    # e.g., "npm run dev"
+
+# Server details for smoke testing
+server:
+  port: 3000
+  health_endpoint: "/api/health"  # or "/" for SPA
+
+# Rule overrides (defaults from agent-platform/rules/)
+rules:
+  max_file_lines: 500
+  max_function_lines: 50
+  max_component_jsx_lines: 80
+  max_function_params: 5
+
+# Agent toggles
+agents:
+  planner:
+    enabled: true
+    auto_approve_complexity:
+      - small  # auto-approve small tasks, require human approval for medium/large
+  implementer:
+    enabled: true
+  code_reviewer:
+    enabled: true
+  ux_reviewer:
+    enabled: true
+    # Pages to screenshot for visual review (requires browser tools)
+    screenshots: []
+    # Example:
+    # - url: /dashboard
+    #   widths: [375, 1440]
+    # - url: /settings
+    #   widths: [375, 768, 1440]
+  security_analyst:
+    enabled: true
+  build_test:
+    enabled: true
+
+# Multi-repo configuration (optional)
+# dependencies:
+#   core:
+#     repo: owner/core-repo
+#     path: core/               # submodule path in this repo
+#     propagate: true           # auto-pull after core changes
+
+# Branch configuration
+branching:
+  prefix: "agent/"              # branch name prefix
+  base: "main"                  # base branch for PRs
+  auto_merge: false             # auto-merge when all gates pass (only for small complexity)
