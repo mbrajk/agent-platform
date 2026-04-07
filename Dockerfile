@@ -22,7 +22,7 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
 RUN npm install -g @anthropic-ai/claude-code
 
 # Chrome DevTools MCP (for UX reviewer)
-RUN npm install -g @anthropic/mcp-chrome-devtools
+RUN npm install -g chrome-devtools-mcp
 
 # Working directory for agent jobs
 WORKDIR /workspace
