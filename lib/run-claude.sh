@@ -83,7 +83,11 @@ post_pr_review() {
     local action="$4"  # "APPROVE", "REQUEST_CHANGES", "COMMENT"
 
     cd "$repo_path"
-    gh pr review "$pr_num" --body "$body" --"$(echo "$action" | tr '[:upper:]' '[:lower:]' | tr '_' '-')"
+    local gh_action
+    gh_action="$(echo "$action" | tr '[:upper:]' '[:lower:]' | tr '_' '-')"
+    # Fall back to comment if review fails (e.g., can't request changes on own PR)
+    gh pr review "$pr_num" --body "$body" --"$gh_action" 2>/dev/null || \
+        gh pr comment "$pr_num" --body "**[${action}]**"$'\n\n'"$body"
 }
 
 # Add a label to an issue
