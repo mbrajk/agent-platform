@@ -32,6 +32,11 @@ run_implement_agent() {
     local branch="${branch_prefix}${issue_num}-${slug}"
 
     cd "$repo_path"
+
+    # Ensure git identity is configured (needed in containers)
+    git config user.name "agent-platform[bot]" 2>/dev/null || true
+    git config user.email "agent-platform[bot]@users.noreply.github.com" 2>/dev/null || true
+
     git checkout "$base_branch"
     git pull origin "$base_branch"
     git checkout -b "$branch"
