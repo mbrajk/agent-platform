@@ -57,15 +57,16 @@ At the end, output a summary table and a JSON verdict:
 EOF
 )"
 
-    # Invoke Claude (read + execute, no file edits)
+    # Invoke Claude — haiku for running commands, $0.50 budget
     local result
     result="$(invoke_claude \
         "$repo_path" \
         "$system_prompt_file" \
         "$user_prompt" \
         "Read,Glob,Grep,Bash(*)" \
-        5 \
-        "$budget"
+        10 \
+        "$budget" \
+        "haiku"
     )"
 
     local exit_code=$?

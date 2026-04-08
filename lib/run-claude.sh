@@ -8,7 +8,8 @@ invoke_claude() {
     local allowed_tools="$4"
     local max_turns="$5"
     local budget="$6"
-    local settings_file="${7:-}"  # Optional: path to settings JSON (e.g., MCP config)
+    local model="${7:-sonnet}"
+    local settings_file="${8:-}"  # Optional: path to settings JSON (e.g., MCP config)
 
     local -a cmd=(claude)
     # In CI: skip permission prompts (container provides isolation)
@@ -21,7 +22,7 @@ invoke_claude() {
         --allowedTools "$allowed_tools"
         --max-turns "$max_turns"
         --output-format json
-        --model opus
+        --model "$model"
     )
 
     if [[ -n "$budget" && "$budget" != "0" ]]; then

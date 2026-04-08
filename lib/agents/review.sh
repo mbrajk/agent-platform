@@ -101,7 +101,7 @@ Then use the Chrome DevTools tools to:
         fi
     fi
 
-    # Invoke Claude
+    # Invoke Claude — sonnet for checklist-driven review, $1 budget
     local result
     result="$(invoke_claude \
         "$repo_path" \
@@ -110,6 +110,7 @@ Then use the Chrome DevTools tools to:
         "$allowed_tools" \
         "$turns" \
         "$budget" \
+        "sonnet" \
         "$settings_file"
     )"
 

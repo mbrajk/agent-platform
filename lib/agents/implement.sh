@@ -74,15 +74,16 @@ When done, output a brief summary of what you changed.
 EOF
 )"
 
-    # Claude: read, write, and build only
+    # Claude: sonnet for implementation (follows plan), $5 budget
     local result
     result="$(invoke_claude \
         "$repo_path" \
         "$system_prompt_file" \
         "$user_prompt" \
         "Read,Glob,Grep,Edit,Write,Bash(npm *),Bash(npx *),Bash(node *),Bash(python *),Bash(pip *)" \
-        30 \
-        "$budget"
+        50 \
+        "$budget" \
+        "sonnet"
     )"
 
     local exit_code=$?

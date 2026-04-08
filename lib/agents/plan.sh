@@ -40,7 +40,7 @@ After writing the plan, output a single JSON block at the very end with your ass
 EOF
 )"
 
-    # Invoke Claude (read-only tools only)
+    # Invoke Claude — opus for architectural reasoning, $5 budget
     local result
     result="$(invoke_claude \
         "$repo_path" \
@@ -48,7 +48,8 @@ EOF
         "$user_prompt" \
         "Read,Glob,Grep" \
         20 \
-        "$budget"
+        "$budget" \
+        "opus"
     )"
 
     local exit_code=$?
