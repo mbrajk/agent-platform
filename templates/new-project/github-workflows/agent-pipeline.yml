@@ -10,9 +10,10 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+  id-token: write
 
 jobs:
-  # ---- Planning: triggered by "ready" label on issues ----
+  # ---- Planning: opus, $2 budget ----
   plan:
     if: >
       github.event_name == 'issues' &&
@@ -32,6 +33,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          label_trigger: "ready"
           prompt: |
             REPO: ${{ github.repository }}
             ISSUE NUMBER: ${{ github.event.issue.number }}
@@ -48,11 +50,12 @@ jobs:
             - Add a complexity label (complexity:small, complexity:medium, or complexity:large)
             - Remove the "ready" label
           claude_args: |
+            --model opus
+            --max-budget-usd 2
             --append-system-prompt-file .agent-platform/agents/planner.md
             --append-system-prompt-file .agent-platform/rules/code-structure.md
-            --max-turns 20
 
-  # ---- Implementation: triggered by "approved" label on issues ----
+  # ---- Implementation: sonnet, $5 budget ----
   implement:
     if: >
       github.event_name == 'issues' &&
@@ -72,6 +75,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          label_trigger: "approved"
           prompt: |
             REPO: ${{ github.repository }}
             ISSUE NUMBER: ${{ github.event.issue.number }}
@@ -91,9 +95,10 @@ jobs:
             - Add label "in-progress" to the issue
             - Remove the "approved" label
           claude_args: |
+            --model sonnet
+            --max-budget-usd 5
             --append-system-prompt-file .agent-platform/agents/implementer.md
             --append-system-prompt-file .agent-platform/rules/code-structure.md
-            --max-turns 30
 
   # ---- Review gates: triggered by "agent-pr" label on PRs ----
 
@@ -122,9 +127,10 @@ jobs:
             Post inline comments on specific lines where issues are found.
             Approve if all checks pass, request changes if blocking issues exist.
           claude_args: |
+            --model sonnet
+            --max-budget-usd 1
             --append-system-prompt-file .agent-platform/agents/code-reviewer.md
             --append-system-prompt-file .agent-platform/rules/code-structure.md
-            --max-turns 10
 
   review-security:
     if: >
@@ -152,9 +158,10 @@ jobs:
             Focus on real, exploitable vulnerabilities — not theoretical risks.
             Approve if no blocking issues, request changes for critical/high findings.
           claude_args: |
+            --model sonnet
+            --max-budget-usd 1
             --append-system-prompt-file .agent-platform/agents/security-analyst.md
             --append-system-prompt-file .agent-platform/rules/security-standards.md
-            --max-turns 10
 
   review-ux:
     if: >
@@ -182,9 +189,10 @@ jobs:
             simply approve with "No UI changes — UX review not applicable."
             Otherwise, post inline comments on specific lines where issues are found.
           claude_args: |
+            --model sonnet
+            --max-budget-usd 1
             --append-system-prompt-file .agent-platform/agents/ux-reviewer.md
             --append-system-prompt-file .agent-platform/rules/ux-standards.md
-            --max-turns 10
 
   build-test:
     if: >
@@ -217,5 +225,6 @@ jobs:
             Do not modify any files — only run commands and report.
             Approve if all checks pass, request changes if the build or tests fail.
           claude_args: |
+            --model haiku
+            --max-budget-usd 0.50
             --append-system-prompt-file .agent-platform/agents/build-test.md
-            --max-turns 5
