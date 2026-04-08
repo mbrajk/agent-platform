@@ -11,6 +11,10 @@ invoke_claude() {
     local settings_file="${7:-}"  # Optional: path to settings JSON (e.g., MCP config)
 
     local -a cmd=(claude)
+    # In CI: skip permission prompts (container provides isolation)
+    if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" ]]; then
+        cmd+=(--dangerously-skip-permissions)
+    fi
     cmd+=(
         -p "$user_prompt"
         --append-system-prompt-file "$system_prompt_file"

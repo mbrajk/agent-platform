@@ -24,5 +24,10 @@ RUN npm install -g @anthropic-ai/claude-code
 # Chrome DevTools MCP (for UX reviewer)
 RUN npm install -g chrome-devtools-mcp
 
+# Create non-root user for Claude Code (required for --dangerously-skip-permissions)
+RUN useradd -m -s /bin/bash agent && \
+    mkdir -p /workspace && chown agent:agent /workspace
+
 # Working directory for agent jobs
 WORKDIR /workspace
+USER agent
