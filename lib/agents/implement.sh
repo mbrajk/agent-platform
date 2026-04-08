@@ -21,7 +21,7 @@ run_implement_agent() {
         return 1
     fi
 
-    # Create branch
+    # Determine branch name
     local slug
     slug="$(echo "$title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | head -c 40)"
     local branch_prefix
@@ -31,9 +31,6 @@ run_implement_agent() {
     local branch="${branch_prefix}${issue_num}-${slug}"
 
     cd "$repo_path"
-    git checkout "$base_branch"
-    git pull origin "$base_branch"
-    git checkout -b "$branch"
 
     # Assemble system prompt: implementer agent + code-structure rules
     local system_prompt_file
@@ -59,22 +56,27 @@ ${comments}
 
 ---
 
-Implement the plan step by step. After writing all code, run the build command to verify:
-${build_cmd:+Build command: \`${build_cmd}\`}
+## Instructions
 
-Commit your changes with clear, descriptive messages. Do not include AI attribution in commits.
+1. Create and switch to branch: ${branch} (from ${base_branch})
+2. Write tests first based on the acceptance criteria in the plan
+3. Implement the plan step by step
+4. Run the build command to verify: ${build_cmd:+\`${build_cmd}\`}
+5. Commit your changes with clear, descriptive messages (no AI attribution)
+6. Push the branch: git push -u origin ${branch}
+7. Create a draft PR: gh pr create --base ${base_branch} --head ${branch} --title "${title}" --label "agent-pr" --draft --body "Closes #${issue_num}"
 
-When done, output a summary of what you changed for the PR description.
+Do all of these steps. The PR creation is the final step — do not skip it.
 EOF
 )"
 
-    # Invoke Claude (full write access)
+    # Invoke Claude (full write access including git push and gh pr create)
     local result
     result="$(invoke_claude \
         "$repo_path" \
         "$system_prompt_file" \
         "$user_prompt" \
-        "Read,Glob,Grep,Edit,Write,Bash(git *),Bash(npm *),Bash(pip *),Bash(python *),Bash(cd *)" \
+        "Read,Glob,Grep,Edit,Write,Bash(*)" \
         30 \
         "$budget"
     )"
@@ -84,37 +86,16 @@ EOF
 
     if [[ $exit_code -ne 0 ]]; then
         echo "Error: implementer agent failed" >&2
-        # Push whatever we have so the failure is visible
-        git push origin "$branch" 2>/dev/null || true
         return 1
     fi
 
-    # Push and create PR
-    git push -u origin "$branch"
+    # Post summary to issue
+    post_issue_comment "$repo_path" "$issue_num" "## Implementation Complete
 
-    local pr_body="$(cat <<EOF
-## Summary
-Closes #${issue_num}
+${result}"
 
-${result}
-
----
-*Automated by agent-platform*
-EOF
-)"
-
-    local pr_url
-    pr_url="$(gh pr create \
-        --base "$base_branch" \
-        --head "$branch" \
-        --title "$title" \
-        --body "$pr_body" \
-        --label "agent-pr" \
-        --draft)"
-
-    echo "PR created: $pr_url" >&2
     add_label "$repo_path" "$issue_num" "in-progress"
     remove_label "$repo_path" "$issue_num" "approved"
 
-    echo "$pr_url"
+    echo "Implementation complete for issue #${issue_num}" >&2
 }
