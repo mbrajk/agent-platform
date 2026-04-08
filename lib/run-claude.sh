@@ -10,10 +10,10 @@ invoke_claude() {
     local budget="$6"
     local settings_file="${7:-}"  # Optional: path to settings JSON (e.g., MCP config)
 
-    # Use --bare when ANTHROPIC_API_KEY is set (CI), regular auth otherwise (local)
     local -a cmd=(claude)
-    if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
-        cmd+=(--bare)
+    # In CI/container: use --dangerously-skip-permissions for unattended execution
+    if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" ]]; then
+        cmd+=(--dangerously-skip-permissions)
     fi
     cmd+=(
         -p "$user_prompt"
