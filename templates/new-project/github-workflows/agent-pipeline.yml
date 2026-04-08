@@ -22,22 +22,35 @@ jobs:
       - name: Checkout project repo
         uses: actions/checkout@v4
 
-      - name: Checkout agent-platform
+      - name: Checkout agent-platform (for agent definitions + rules)
         uses: actions/checkout@v4
         with:
           repository: mbrajk/agent-platform
           path: .agent-platform
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run planner agent
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          chmod +x .agent-platform/run-agent.sh .agent-platform/lib/*.sh .agent-platform/lib/agents/*.sh
-          .agent-platform/run-agent.sh plan \
-            --repo "${{ github.workspace }}" \
-            --issue ${{ github.event.issue.number }}
+      - name: Run planner
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ github.event.issue.number }}
+            TITLE: ${{ github.event.issue.title }}
+            BODY: ${{ github.event.issue.body }}
+
+            You are the planner agent. Read the issue above, explore the codebase,
+            and post an implementation plan as a comment on the issue.
+            Follow the plan format defined in your agent instructions, including
+            acceptance criteria in WHEN-THEN-SHALL format.
+
+            After posting the plan:
+            - Add label "planned" to the issue
+            - Add a complexity label (complexity:small, complexity:medium, or complexity:large)
+            - Remove the "ready" label
+          claude_args: |
+            --append-system-prompt-file .agent-platform/agents/planner.md
+            --append-system-prompt-file .agent-platform/rules/code-structure.md
+            --max-turns 20
 
   # ---- Implementation: triggered by "approved" label on issues ----
   implement:
@@ -49,25 +62,40 @@ jobs:
       - name: Checkout project repo
         uses: actions/checkout@v4
 
-      - name: Checkout agent-platform
+      - name: Checkout agent-platform (for agent definitions + rules)
         uses: actions/checkout@v4
         with:
           repository: mbrajk/agent-platform
           path: .agent-platform
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run implementer agent
-        env:
-          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          chmod +x .agent-platform/run-agent.sh .agent-platform/lib/*.sh .agent-platform/lib/agents/*.sh
-          .agent-platform/run-agent.sh implement \
-            --repo "${{ github.workspace }}" \
-            --issue ${{ github.event.issue.number }}
+      - name: Run implementer
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ github.event.issue.number }}
+            TITLE: ${{ github.event.issue.title }}
+            BODY: ${{ github.event.issue.body }}
+
+            You are the implementer agent. Read the approved implementation plan
+            from the issue comments, then implement it.
+
+            Follow your agent instructions: write tests first from the acceptance
+            criteria, then implement, then verify the build passes.
+
+            Commit your changes, push the branch, and create a draft PR with
+            the label "agent-pr". Link the PR to this issue with "Closes #${{ github.event.issue.number }}".
+
+            After creating the PR:
+            - Add label "in-progress" to the issue
+            - Remove the "approved" label
+          claude_args: |
+            --append-system-prompt-file .agent-platform/agents/implementer.md
+            --append-system-prompt-file .agent-platform/rules/code-structure.md
+            --max-turns 30
 
   # ---- Review gates: triggered by "agent-pr" label on PRs ----
-  # Uses anthropics/claude-code-action for proper PR review integration
 
   review-code:
     if: >
@@ -86,8 +114,11 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
             Review this PR for code structure and maintainability.
-            Apply the standards from the following rules document.
+            Apply the standards from your agent instructions.
             Post inline comments on specific lines where issues are found.
             Approve if all checks pass, request changes if blocking issues exist.
           claude_args: |
@@ -112,8 +143,11 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
             Review this PR for security vulnerabilities.
-            Apply the standards from the following rules document.
+            Apply the standards from your agent instructions.
             Post inline comments on specific lines where issues are found.
             Focus on real, exploitable vulnerabilities — not theoretical risks.
             Approve if no blocking issues, request changes for critical/high findings.
@@ -139,8 +173,11 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
             Review this PR for UX, accessibility, and responsive design issues.
-            Apply the standards from the following rules document.
+            Apply the standards from your agent instructions.
             If no frontend files (tsx, jsx, css, html, vue, svelte) were changed,
             simply approve with "No UI changes — UX review not applicable."
             Otherwise, post inline comments on specific lines where issues are found.
@@ -171,6 +208,9 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
             Run the build and test verification for this project.
             Read .agents/config.yml for the project's build, lint, typecheck, and test commands.
             Execute each configured command and report results.
