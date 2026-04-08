@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Implementer agent: reads an approved plan, writes code, creates a PR.
+# Claude handles: reading files, writing files, running build.
+# Script handles: branch creation, git add/commit, push, PR creation.
 
 run_implement_agent() {
     local repo_path="$1"
@@ -13,7 +15,6 @@ run_implement_agent() {
     local title body comments
     title="$(echo "$issue_json" | jq -r '.title')"
     body="$(echo "$issue_json" | jq -r '.body // ""')"
-    # Get the most recent comment that contains "Implementation Plan" (the approved plan)
     comments="$(echo "$issue_json" | jq -r '[.comments[] | select(.body | contains("Implementation Plan"))] | last | .body // ""')"
 
     if [[ -z "$comments" || "$comments" == "null" ]]; then
@@ -21,7 +22,7 @@ run_implement_agent() {
         return 1
     fi
 
-    # Determine branch name
+    # Create branch (deterministic — script handles git)
     local slug
     slug="$(echo "$title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | head -c 40)"
     local branch_prefix
@@ -31,18 +32,21 @@ run_implement_agent() {
     local branch="${branch_prefix}${issue_num}-${slug}"
 
     cd "$repo_path"
+    git checkout "$base_branch"
+    git pull origin "$base_branch"
+    git checkout -b "$branch"
 
-    # Assemble system prompt: implementer agent + code-structure rules
+    # Assemble system prompt
     local system_prompt_file
     system_prompt_file="$(assemble_system_prompt "implementer" "code-structure" "$repo_path")"
 
     local budget
     budget="$(get_budget "$repo_path" "$BUDGET")"
 
-    # Build commands info from config
     local build_cmd
     build_cmd="$(get_project_config "$repo_path" '.commands.build' '')"
 
+    # Claude only writes files and runs build — no git, no gh
     local user_prompt="$(cat <<EOF
 You are implementing the following GitHub issue. An approved plan is provided below — follow it closely.
 
@@ -56,27 +60,27 @@ ${comments}
 
 ---
 
-## Instructions
+Implement the plan step by step:
+1. Read each file before modifying it
+2. Write tests first based on acceptance criteria (if any in the plan)
+3. Implement the changes
+4. Run the build to verify: ${build_cmd:+\`${build_cmd}\`}
+5. Fix any build errors
 
-1. Create and switch to branch: ${branch} (from ${base_branch})
-2. Write tests first based on the acceptance criteria in the plan
-3. Implement the plan step by step
-4. Run the build command to verify: ${build_cmd:+\`${build_cmd}\`}
-5. Commit your changes with clear, descriptive messages (no AI attribution)
-6. Push the branch: git push -u origin ${branch}
-7. Create a draft PR: gh pr create --base ${base_branch} --head ${branch} --title "${title}" --label "agent-pr" --draft --body "Closes #${issue_num}"
+Do NOT run any git commands. Do NOT create commits. Do NOT push. Do NOT create PRs.
+Just write the code and verify it builds.
 
-Do all of these steps. The PR creation is the final step — do not skip it.
+When done, output a brief summary of what you changed.
 EOF
 )"
 
-    # Invoke Claude (full write access including git push and gh pr create)
+    # Claude: read, write, and build only
     local result
     result="$(invoke_claude \
         "$repo_path" \
         "$system_prompt_file" \
         "$user_prompt" \
-        "Read,Glob,Grep,Edit,Write,Bash(*)" \
+        "Read,Glob,Grep,Edit,Write,Bash(npm *),Bash(npx *),Bash(node *),Bash(python *),Bash(pip *)" \
         30 \
         "$budget"
     )"
@@ -86,16 +90,61 @@ EOF
 
     if [[ $exit_code -ne 0 ]]; then
         echo "Error: implementer agent failed" >&2
+        post_issue_comment "$repo_path" "$issue_num" "## Implementation Failed
+
+The implementer agent encountered an error. Check the workflow logs for details."
         return 1
     fi
 
-    # Post summary to issue
+    # Script handles all git/gh operations (deterministic)
+    cd "$repo_path"
+
+    # Stage and commit all changes
+    git add -A
+    if git diff --cached --quiet; then
+        echo "No changes made by agent" >&2
+        post_issue_comment "$repo_path" "$issue_num" "## No Changes
+
+The implementer agent completed but made no file changes."
+        return 1
+    fi
+
+    git commit -m "Implement #${issue_num}: ${title}"
+
+    # Push branch
+    git push -u origin "$branch"
+
+    # Create draft PR
+    local pr_body="$(cat <<EOF
+## Summary
+Closes #${issue_num}
+
+${result}
+
+---
+*Automated by agent-platform*
+EOF
+)"
+
+    local pr_url
+    pr_url="$(gh pr create \
+        --base "$base_branch" \
+        --head "$branch" \
+        --title "$title" \
+        --body "$pr_body" \
+        --label "agent-pr" \
+        --draft)"
+
+    echo "PR created: $pr_url" >&2
+
+    # Update issue labels
     post_issue_comment "$repo_path" "$issue_num" "## Implementation Complete
 
-${result}"
+PR created: ${pr_url}
 
+${result}"
     add_label "$repo_path" "$issue_num" "in-progress"
     remove_label "$repo_path" "$issue_num" "approved"
 
-    echo "Implementation complete for issue #${issue_num}" >&2
+    echo "$pr_url"
 }
