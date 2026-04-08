@@ -73,7 +73,7 @@ jobs:
     if: >
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'agent-pr')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout agent-platform (for rules)
         uses: actions/checkout@v4
@@ -99,7 +99,7 @@ jobs:
     if: >
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'agent-pr')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout agent-platform (for rules)
         uses: actions/checkout@v4
@@ -126,7 +126,7 @@ jobs:
     if: >
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'agent-pr')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout agent-platform (for rules)
         uses: actions/checkout@v4
@@ -153,7 +153,7 @@ jobs:
     if: >
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'agent-pr')
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v4
