@@ -125,6 +125,10 @@ Implement the plan step by step:
 6. Run tests and iterate until they pass
 
 Constraints:
+- Do NOT modify any file under \`.github/workflows/\`. The default GITHUB_TOKEN
+  cannot push workflow-file changes, so any edit there causes the push to fail
+  entirely. If the plan seems to require a workflow change, flag it in your
+  summary instead of editing.
 - Do NOT modify test configuration files (vitest.config.ts, jest.config.js, etc.).
   If you need a test-environment change, add a setup file instead.
 - Do NOT run any git commands. Do NOT create commits. Do NOT push. Do NOT create PRs.
@@ -137,41 +141,51 @@ EOF
 )"
 
     # Wrap the Claude invocation in a hard session timeout. If it exceeds
-    # AGENT_SESSION_TIMEOUT_SECONDS, we SIGTERM the process group (kills Claude and
+    # AGENT_SESSION_TIMEOUT_SECONDS, SIGTERM the process group (kills Claude and
     # any child npm/node/test processes); execution falls through to the push step.
     local result_file
     result_file="$(mktemp)"
 
-    (
-        invoke_claude \
-            "$repo_path" \
-            "$system_prompt_file" \
-            "$user_prompt" \
-            "Read,Glob,Grep,Edit,Write,Bash(npm *),Bash(npx *),Bash(node *),Bash(python *),Bash(pip *)" \
-            50 \
-            "$budget" \
-            "sonnet" > "$result_file"
-    ) &
+    # setsid puts Claude in its own process group so `kill -- -$pgid` reliably
+    # kills all descendants. Falls back to plain bash if setsid is missing.
+    local launcher=(bash -c)
+    if command -v setsid >/dev/null 2>&1; then
+        launcher=(setsid bash -c)
+    fi
+
+    "${launcher[@]}" "invoke_claude \"\$@\" > \"$result_file\"" _ \
+        "$repo_path" \
+        "$system_prompt_file" \
+        "$user_prompt" \
+        "Read,Glob,Grep,Edit,Write,Bash(npm *),Bash(npx *),Bash(node *),Bash(python *),Bash(pip *)" \
+        50 \
+        "$budget" \
+        "sonnet" &
     local claude_pid=$!
 
     local elapsed=0
     while kill -0 "$claude_pid" 2>/dev/null; do
         if (( elapsed >= AGENT_SESSION_TIMEOUT_SECONDS )); then
             echo "Session exceeded ${AGENT_SESSION_TIMEOUT_SECONDS}s — terminating." >&2
-            # Kill the whole process group so child npm/test processes die too
-            kill -TERM "-$claude_pid" 2>/dev/null || kill -TERM "$claude_pid" 2>/dev/null || true
+            # With setsid the pgid equals claude_pid, so kill -- -pgid kills the tree.
+            kill -TERM -- "-$claude_pid" 2>/dev/null || kill -TERM "$claude_pid" 2>/dev/null || true
             sleep 10
-            kill -KILL "-$claude_pid" 2>/dev/null || kill -KILL "$claude_pid" 2>/dev/null || true
+            kill -KILL -- "-$claude_pid" 2>/dev/null || kill -KILL "$claude_pid" 2>/dev/null || true
+            # Clean up any straggling claude children in case the pgid trick failed.
+            pkill -KILL -P "$claude_pid" 2>/dev/null || true
             break
         fi
         sleep 5
         elapsed=$(( elapsed + 5 ))
     done
 
-    wait "$claude_pid" 2>/dev/null
-    local claude_exit=$?
+    # Capture Claude's exit code without letting errexit kill us here — a non-zero
+    # exit is expected when we terminate the session, and we must continue to the
+    # push step so work isn't orphaned.
+    local claude_exit=0
+    wait "$claude_pid" 2>/dev/null || claude_exit=$?
     local result
-    result="$(cat "$result_file")"
+    result="$(cat "$result_file" 2>/dev/null || true)"
     rm -f "$result_file"
     rm -f "$system_prompt_file"
 

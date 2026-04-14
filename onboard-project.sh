@@ -69,6 +69,19 @@ for label in "${!LABELS[@]}"; do
 done
 
 # -----------------------------------------------------------------------
+# 1b. Raise Actions permissions so GITHUB_TOKEN can push + create PRs
+# -----------------------------------------------------------------------
+echo ""
+echo "--- Enabling workflow write permissions ---"
+if gh api -X PUT "repos/${REPO}/actions/permissions/workflow" \
+    -f default_workflow_permissions=write \
+    -F can_approve_pull_request_reviews=true >/dev/null 2>&1; then
+    echo "  Set default_workflow_permissions=write, can_approve_pull_request_reviews=true"
+else
+    echo "  Warning: could not update Actions permissions — set manually in Settings → Actions → General"
+fi
+
+# -----------------------------------------------------------------------
 # 2. Set secrets
 # -----------------------------------------------------------------------
 echo ""
