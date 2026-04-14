@@ -1,5 +1,47 @@
 #!/usr/bin/env bash
 # Invokes Claude Code CLI with assembled prompt and captures output.
+#
+# Uses --output-format stream-json --verbose so every tool call and assistant
+# message streams live. The raw stream is captured to a tempfile for final
+# result extraction; a human-readable view is piped to stderr so workflow
+# logs (gh run watch) show Claude's activity in real time.
+
+# Formats Claude's JSONL stream into readable one-line summaries on stdout.
+# Invalid / non-JSON lines pass through unchanged.
+format_claude_stream() {
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^\{ ]]; then
+            echo "$line" | jq -r '
+                if .type == "system" then
+                    "[claude] session \((.session_id // "")[0:8])... model=\(.model // "?")"
+                elif .type == "assistant" then
+                    (.message.content // [] | map(
+                        if .type == "text" then
+                            "[claude] \((.text // "") | gsub("\n";" ") | .[0:500])"
+                        elif .type == "tool_use" then
+                            "[tool ]  \(.name) \((.input // {}) | tostring | .[0:200])"
+                        else empty end
+                    ) | .[])
+                elif .type == "user" then
+                    (.message.content // [] | map(
+                        if .type == "tool_result" then
+                            "[rslt ]  \(
+                                if (.content | type) == "array"
+                                then (.content | map(select(.type=="text") | .text) | join(" "))
+                                else (.content // "" | tostring)
+                                end | gsub("\n";" ") | .[0:300]
+                            )"
+                        else empty end
+                    ) | .[])
+                elif .type == "result" then
+                    "[done ]  duration=\(.duration_ms // 0)ms cost=$\(.total_cost_usd // 0) tokens_in=\(.usage.input_tokens // 0) tokens_out=\(.usage.output_tokens // 0) turns=\(.num_turns // 0)"
+                else empty end
+            ' 2>/dev/null || echo "$line"
+        else
+            echo "$line"
+        fi
+    done
+}
 
 invoke_claude() {
     local repo_path="$1"
@@ -21,7 +63,8 @@ invoke_claude() {
         --append-system-prompt-file "$system_prompt_file"
         --allowedTools "$allowed_tools"
         --max-turns "$max_turns"
-        --output-format json
+        --output-format stream-json
+        --verbose
         --model "$model"
     )
 
@@ -52,21 +95,36 @@ invoke_claude() {
 
     echo "Running agent in $repo_path..." >&2
 
-    local output
-    output="$(cd "$repo_path" && "${cmd[@]}" 2>&1)" || true
+    local raw_file
+    raw_file="$(mktemp)"
 
-    # Try to extract the result from JSON output
-    if echo "$output" | jq -e '.result' &>/dev/null; then
-        echo "$output" | jq -r '.result'
-        # Log usage to stderr
-        local input_tokens output_tokens
-        input_tokens="$(echo "$output" | jq -r '.usage.input_tokens // "?"')"
-        output_tokens="$(echo "$output" | jq -r '.usage.output_tokens // "?"')"
-        echo "Tokens: ${input_tokens} in / ${output_tokens} out" >&2
+    # Run Claude. Raw stream → tempfile. Formatted view → stderr (live in logs).
+    # pipefail so we can recover Claude's exit code from PIPESTATUS.
+    set -o pipefail
+    (cd "$repo_path" && "${cmd[@]}") 2> >(tee -a "$raw_file" >&2) \
+        | tee -a "$raw_file" \
+        | format_claude_stream >&2
+    local exit_code=${PIPESTATUS[0]}
+    set +o pipefail
+
+    # Extract the final result event (stream-json emits a line with type="result")
+    local result_line
+    result_line="$(grep -E '"type"[[:space:]]*:[[:space:]]*"result"' "$raw_file" | tail -1)"
+
+    if [[ -n "$result_line" ]] && echo "$result_line" | jq -e '.result' &>/dev/null; then
+        echo "$result_line" | jq -r '.result'
+        local input_tokens output_tokens cost
+        input_tokens="$(echo "$result_line" | jq -r '.usage.input_tokens // "?"')"
+        output_tokens="$(echo "$result_line" | jq -r '.usage.output_tokens // "?"')"
+        cost="$(echo "$result_line" | jq -r '.total_cost_usd // "?"')"
+        echo "Tokens: ${input_tokens} in / ${output_tokens} out · Cost: \$${cost}" >&2
+        rm -f "$raw_file"
         return 0
     else
-        # Non-JSON output — probably an error
-        echo "$output" >&2
+        echo "Error: no result event in Claude stream (exit ${exit_code})" >&2
+        echo "--- Last 2KB of stream ---" >&2
+        tail -c 2000 "$raw_file" >&2
+        rm -f "$raw_file"
         return 1
     fi
 }
