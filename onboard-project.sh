@@ -51,6 +51,12 @@ declare -A LABELS=(
     ["complexity:small"]="C2E0C6:Small complexity (1-3 files)"
     ["complexity:medium"]="FEF2C0:Medium complexity (3-8 files)"
     ["complexity:large"]="F9D0C4:Large complexity (8+ files)"
+    ["🤖 planning"]="8A2BE2:Planner agent is running"
+    ["🤖 implementing"]="FBCA04:Implementer agent is running"
+    ["🤖 code-review"]="0E8A16:Code reviewer is running"
+    ["🤖 security-review"]="0E8A16:Security reviewer is running"
+    ["🤖 ux-review"]="0E8A16:UX reviewer is running"
+    ["🤖 build-test"]="0E8A16:Build/test agent is running"
 )
 
 for label in "${!LABELS[@]}"; do

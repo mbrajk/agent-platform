@@ -19,7 +19,13 @@ jobs:
       github.event_name == 'issues' &&
       github.event.label.name == 'ready'
     runs-on: self-hosted
+    timeout-minutes: 10
     steps:
+      - name: Mark planner active
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh issue edit ${{ github.event.issue.number }} -R ${{ github.repository }} --add-label "🤖 planning" || true
+
       - name: Checkout project repo
         uses: actions/checkout@v4
 
@@ -55,13 +61,28 @@ jobs:
             --append-system-prompt-file .agent-platform/agents/planner.md
             --append-system-prompt-file .agent-platform/rules/code-structure.md
 
+      - name: Clear planner marker
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh issue edit ${{ github.event.issue.number }} -R ${{ github.repository }} --remove-label "🤖 planning" || true
+
   # ---- Implementation: sonnet, $5 budget ----
   implement:
     if: >
       github.event_name == 'issues' &&
       github.event.label.name == 'approved'
     runs-on: self-hosted
+    timeout-minutes: 20
+    concurrency:
+      group: implement-${{ github.event.issue.number }}
+      cancel-in-progress: true
     steps:
+      - name: Mark implementer active
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh issue edit ${{ github.event.issue.number }} -R ${{ github.repository }} --add-label "🤖 implementing" || true
+
       - name: Checkout project repo
         uses: actions/checkout@v4
 
@@ -100,6 +121,12 @@ jobs:
             --append-system-prompt-file .agent-platform/agents/implementer.md
             --append-system-prompt-file .agent-platform/rules/code-structure.md
 
+      - name: Clear implementer marker
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh issue edit ${{ github.event.issue.number }} -R ${{ github.repository }} --remove-label "🤖 implementing" || true
+
   # ---- Review gates: triggered by "agent-pr" label on PRs ----
 
   review-code:
@@ -107,7 +134,13 @@ jobs:
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'agent-pr')
     runs-on: self-hosted
+    timeout-minutes: 10
     steps:
+      - name: Mark code-review active
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr edit ${{ github.event.pull_request.number }} -R ${{ github.repository }} --add-label "🤖 code-review" || true
+
       - name: Checkout agent-platform (for rules)
         uses: actions/checkout@v4
         with:
@@ -132,12 +165,24 @@ jobs:
             --append-system-prompt-file .agent-platform/agents/code-reviewer.md
             --append-system-prompt-file .agent-platform/rules/code-structure.md
 
+      - name: Clear code-review marker
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr edit ${{ github.event.pull_request.number }} -R ${{ github.repository }} --remove-label "🤖 code-review" || true
+
   review-security:
     if: >
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'agent-pr')
     runs-on: self-hosted
+    timeout-minutes: 10
     steps:
+      - name: Mark security-review active
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr edit ${{ github.event.pull_request.number }} -R ${{ github.repository }} --add-label "🤖 security-review" || true
+
       - name: Checkout agent-platform (for rules)
         uses: actions/checkout@v4
         with:
@@ -163,12 +208,24 @@ jobs:
             --append-system-prompt-file .agent-platform/agents/security-analyst.md
             --append-system-prompt-file .agent-platform/rules/security-standards.md
 
+      - name: Clear security-review marker
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr edit ${{ github.event.pull_request.number }} -R ${{ github.repository }} --remove-label "🤖 security-review" || true
+
   review-ux:
     if: >
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'agent-pr')
     runs-on: self-hosted
+    timeout-minutes: 15
     steps:
+      - name: Mark ux-review active
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr edit ${{ github.event.pull_request.number }} -R ${{ github.repository }} --add-label "🤖 ux-review" || true
+
       - name: Checkout agent-platform (for rules)
         uses: actions/checkout@v4
         with:
@@ -194,12 +251,24 @@ jobs:
             --append-system-prompt-file .agent-platform/agents/ux-reviewer.md
             --append-system-prompt-file .agent-platform/rules/ux-standards.md
 
+      - name: Clear ux-review marker
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr edit ${{ github.event.pull_request.number }} -R ${{ github.repository }} --remove-label "🤖 ux-review" || true
+
   build-test:
     if: >
       github.event_name == 'pull_request' &&
       contains(github.event.pull_request.labels.*.name, 'agent-pr')
     runs-on: self-hosted
+    timeout-minutes: 10
     steps:
+      - name: Mark build-test active
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr edit ${{ github.event.pull_request.number }} -R ${{ github.repository }} --add-label "🤖 build-test" || true
+
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
@@ -228,3 +297,9 @@ jobs:
             --model haiku
             --max-budget-usd 0.50
             --append-system-prompt-file .agent-platform/agents/build-test.md
+
+      - name: Clear build-test marker
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr edit ${{ github.event.pull_request.number }} -R ${{ github.repository }} --remove-label "🤖 build-test" || true
