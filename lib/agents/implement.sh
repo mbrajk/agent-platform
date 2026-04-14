@@ -63,6 +63,44 @@ run_implement_agent() {
     local build_cmd
     build_cmd="$(get_project_config "$repo_path" '.commands.build' '')"
 
+    # If a PR already exists for this branch (iteration run), pull its review comments
+    # and inline code-review comments so Claude sees what to fix this round.
+    local review_feedback=""
+    local existing_pr_num
+    existing_pr_num="$(cd "$repo_path" && gh pr list --head "$branch" --json number --jq '.[0].number' 2>/dev/null)"
+    if [[ -n "$existing_pr_num" ]]; then
+        echo "Existing PR #${existing_pr_num} found on branch ${branch} — fetching review feedback" >&2
+        local pr_comments pr_reviews pr_review_comments
+        pr_comments="$(cd "$repo_path" && gh pr view "$existing_pr_num" --json comments --jq '[.comments[] | "### Comment by \(.author.login)\n\n\(.body)"] | join("\n\n---\n\n")' 2>/dev/null)"
+        pr_reviews="$(cd "$repo_path" && gh pr view "$existing_pr_num" --json reviews --jq '[.reviews[] | select(.body != "") | "### Review by \(.author.login) (\(.state))\n\n\(.body)"] | join("\n\n---\n\n")' 2>/dev/null)"
+        pr_review_comments="$(cd "$repo_path" && gh api "repos/:owner/:repo/pulls/${existing_pr_num}/comments" --jq '[.[] | "### Inline comment by \(.user.login) on `\(.path)` line \(.line // .original_line)\n\n\(.body)"] | join("\n\n---\n\n")' 2>/dev/null)"
+
+        if [[ -n "$pr_comments" || -n "$pr_reviews" || -n "$pr_review_comments" ]]; then
+            review_feedback="$(cat <<FEEDBACK
+
+## Prior Review Feedback on PR #${existing_pr_num}
+
+You have previously pushed code to this branch. Reviewers left the following feedback. Address each point and re-run tests/build.
+
+${pr_reviews:+### Reviews
+
+${pr_reviews}
+
+}${pr_review_comments:+### Inline code comments
+
+${pr_review_comments}
+
+}${pr_comments:+### PR comments
+
+${pr_comments}
+
+}
+---
+FEEDBACK
+)"
+        fi
+    fi
+
     # Full toolset restored. Claude iterates normally — write, test, fix, build.
     # The only forbidden edit is test-config files; platform-level caps stay authoritative.
     local user_prompt="$(cat <<EOF
@@ -75,7 +113,7 @@ ${body}
 ## Approved Implementation Plan
 
 ${comments}
-
+${review_feedback}
 ---
 
 Implement the plan step by step:
