@@ -116,6 +116,12 @@ ${comments}
 ${review_feedback}
 ---
 
+Pre-setup: dependencies have already been installed by the CI runner before
+your session started. \`node_modules/\` is present. You do NOT need to run
+\`npm install\` unless the plan requires adding a new dependency. If you add
+a new dep, append it to package.json and run \`npm install <pkg>\` — the rest
+of the tree is already there.
+
 Implement the plan step by step:
 1. Read each file before modifying it
 2. Write tests first based on acceptance criteria (if any in the plan)
@@ -132,9 +138,21 @@ Constraints:
 - Do NOT modify test configuration files (vitest.config.ts, jest.config.js, etc.).
   If you need a test-environment change, add a setup file instead.
 - Do NOT run any git commands. Do NOT create commits. Do NOT push. Do NOT create PRs.
-- When running long commands, pass a sensible \`timeout\` to the Bash tool (e.g.,
-  120000 ms for tests, 180000 ms for builds). Never retry the same timed-out
-  command with a longer timeout — investigate instead.
+- For verbose commands (npm install, test, build), use the agent-bash wrapper to
+  keep your context window clean. The wrapper elides successful output so you
+  don't burn tokens on install logs, while keeping FULL output on failure.
+  Path: \`.agent-platform/lib/agent-bash.sh\`. Examples:
+
+      .agent-platform/lib/agent-bash.sh install 180 -- npm install
+      .agent-platform/lib/agent-bash.sh test    180 -- npm test
+      .agent-platform/lib/agent-bash.sh build   180 -- npm run build
+      .agent-platform/lib/agent-bash.sh tsc      60 -- npx tsc --noEmit
+
+  Short commands (ls, cat of a small file, a one-off node expression) can run
+  directly via Bash without the wrapper. Use judgement.
+- When running long commands directly without the wrapper, pass a sensible
+  \`timeout\` to the Bash tool (120000 ms for tests, 180000 ms for builds).
+  Never retry the same timed-out command with a longer timeout.
 
 When done, output a brief summary of what you changed.
 EOF

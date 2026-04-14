@@ -34,7 +34,7 @@ format_claude_stream() {
                         else empty end
                     ) | .[])
                 elif .type == "result" then
-                    "[done ]  duration=\(.duration_ms // 0)ms cost=$\(.total_cost_usd // 0) tokens_in=\(.usage.input_tokens // 0) tokens_out=\(.usage.output_tokens // 0) turns=\(.num_turns // 0)"
+                    "[done ]  duration=\(.duration_ms // 0)ms cost=$\(.total_cost_usd // 0) tokens_in=\(.usage.input_tokens // 0) tokens_out=\(.usage.output_tokens // 0) cache_read=\(.usage.cache_read_input_tokens // 0) cache_write=\(.usage.cache_creation_input_tokens // 0) turns=\(.num_turns // 0)"
                 else empty end
             ' 2>/dev/null || echo "$line"
         else
@@ -113,11 +113,13 @@ invoke_claude() {
 
     if [[ -n "$result_line" ]] && echo "$result_line" | jq -e '.result' &>/dev/null; then
         echo "$result_line" | jq -r '.result'
-        local input_tokens output_tokens cost
-        input_tokens="$(echo "$result_line" | jq -r '.usage.input_tokens // "?"')"
-        output_tokens="$(echo "$result_line" | jq -r '.usage.output_tokens // "?"')"
-        cost="$(echo "$result_line" | jq -r '.total_cost_usd // "?"')"
-        echo "Tokens: ${input_tokens} in / ${output_tokens} out · Cost: \$${cost}" >&2
+        local input_tokens output_tokens cost cache_read cache_write
+        input_tokens="$(echo "$result_line"  | jq -r '.usage.input_tokens // 0')"
+        output_tokens="$(echo "$result_line" | jq -r '.usage.output_tokens // 0')"
+        cache_read="$(echo "$result_line"    | jq -r '.usage.cache_read_input_tokens // 0')"
+        cache_write="$(echo "$result_line"   | jq -r '.usage.cache_creation_input_tokens // 0')"
+        cost="$(echo "$result_line"          | jq -r '.total_cost_usd // "?"')"
+        echo "Tokens: ${input_tokens} in / ${output_tokens} out · cache: read=${cache_read} write=${cache_write} · Cost: \$${cost}" >&2
         rm -f "$raw_file"
         return 0
     else
